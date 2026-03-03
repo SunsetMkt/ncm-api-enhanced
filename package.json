@@ -60,6 +60,7 @@
     "interface.d.ts",
     "module_types",
     "server.js",
+    "server.hono.js",
     "generateConfig.js",
     "public",
     "data"

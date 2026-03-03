@@ -390,4 +390,6 @@ async function serveNcmApi(options) {
 module.exports = {
   serveNcmApi,
   getModulesDefinitions,
+  checkVersion,
+  VERSION_CHECK_RESULT,
 }
