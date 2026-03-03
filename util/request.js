@@ -2,14 +2,7 @@
 const encrypt = require('./crypto')
 const CryptoJS = require('crypto-js')
 const { default: axios } = require('axios')
-const { PacProxyAgent } = require('pac-proxy-agent')
 const logger = require('./logger')
-const http = require('http')
-const https = require('https')
-const tunnel = require('tunnel')
-const fs = require('fs')
-const path = require('path')
-const tmpPath = require('os').tmpdir()
 const {
   cookieToJson,
   cookieObjToString,
@@ -19,11 +12,54 @@ const {
 const { URLSearchParams, URL } = require('url')
 const { APP_CONF } = require('../util/config.json')
 
+// Node.js-only modules — loaded conditionally so that the module can also be
+// bundled for runtimes that do not provide a filesystem (e.g. Cloudflare Workers).
+let PacProxyAgent, http, https, tunnel, fs, path
+const tmpPath = (() => {
+  try {
+    return require('os').tmpdir()
+  } catch {
+    // No filesystem in this runtime (e.g. Cloudflare Workers); token will not
+    // be pre-cached from disk.
+    return ''
+  }
+})()
+try {
+  ;({ PacProxyAgent } = require('pac-proxy-agent'))
+} catch {}
+try {
+  http = require('http')
+} catch {}
+try {
+  https = require('https')
+} catch {}
+try {
+  tunnel = require('tunnel')
+} catch {}
+try {
+  fs = require('fs')
+  path = require('path')
+} catch {}
+
 // 预先读取匿名token并缓存
-const anonymous_token = fs.readFileSync(
-  path.resolve(tmpPath, './anonymous_token'),
-  'utf-8',
-)
+// In runtimes without a filesystem (e.g. Cloudflare Workers) the token defaults
+// to an empty string, which means requests will proceed without a pre-cached
+// anonymous token. The API server will issue a new one on first use.
+let anonymous_token = ''
+try {
+  if (fs && path && tmpPath) {
+    anonymous_token = fs.readFileSync(
+      path.resolve(tmpPath, './anonymous_token'),
+      'utf-8',
+    )
+  } else {
+    logger.warn(
+      'anonymous_token: filesystem not available, starting with empty token',
+    )
+  }
+} catch {
+  logger.warn('anonymous_token: could not read token file, starting with empty token')
+}
 
 // 预先绑定常用函数和常量
 const floor = Math.floor
@@ -35,9 +71,11 @@ const parse = JSON.parse
 const characters = 'abcdefghijklmnopqrstuvwxyz'
 const charactersLength = characters.length
 
-// 预先创建HTTP/HTTPS agents并重用
-const createHttpAgent = () => new http.Agent({ keepAlive: true })
-const createHttpsAgent = () => new https.Agent({ keepAlive: true })
+// 预先创建HTTP/HTTPS agents并重用（仅在 Node.js 环境中可用）
+const createHttpAgent = () =>
+  http ? new http.Agent({ keepAlive: true }) : undefined
+const createHttpsAgent = () =>
+  https ? new https.Agent({ keepAlive: true }) : undefined
 
 // 预先计算WNMCID（只计算一次）
 const WNMCID = (function () {
@@ -277,30 +315,34 @@ const createRequest = (uri, data, options) => {
       settings.responseType = 'arraybuffer'
     }
 
-    // 代理处理
+    // 代理处理（仅在支持的运行环境中可用）
     if (options.proxy) {
       if (options.proxy.indexOf('pac') > -1) {
-        const agent = new PacProxyAgent(options.proxy)
-        settings.httpAgent = agent
-        settings.httpsAgent = agent
+        if (PacProxyAgent) {
+          const agent = new PacProxyAgent(options.proxy)
+          settings.httpAgent = agent
+          settings.httpsAgent = agent
+        }
       } else {
         try {
           const purl = new URL(options.proxy)
           if (purl.hostname) {
             const isHttps = purl.protocol === 'https:'
-            const agent = tunnel[isHttps ? 'httpsOverHttp' : 'httpOverHttp']({
-              proxy: {
-                host: purl.hostname,
-                port: purl.port || 80,
-                proxyAuth:
-                  purl.username && purl.password
-                    ? purl.username + ':' + purl.password
-                    : '',
-              },
-            })
-            settings.httpsAgent = agent
-            settings.httpAgent = agent
-            settings.proxy = false
+            if (tunnel) {
+              const agent = tunnel[isHttps ? 'httpsOverHttp' : 'httpOverHttp']({
+                proxy: {
+                  host: purl.hostname,
+                  port: purl.port || 80,
+                  proxyAuth:
+                    purl.username && purl.password
+                      ? purl.username + ':' + purl.password
+                      : '',
+                },
+              })
+              settings.httpsAgent = agent
+              settings.httpAgent = agent
+              settings.proxy = false
+            }
           } else {
             logger.error('代理配置无效,不使用代理')
           }

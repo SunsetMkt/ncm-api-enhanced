@@ -11,7 +11,10 @@
     "prepare": "husky install",
     "pkgwin": "pkg . -t node18-win-x64 -C GZip -o precompiled/app",
     "pkglinux": "pkg . -t node18-linux-x64 -C GZip -o precompiled/app",
-    "pkgmacos": "pkg . -t node18-macos-x64 -C GZip -o precompiled/app"
+    "pkgmacos": "pkg . -t node18-macos-x64 -C GZip -o precompiled/app",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy",
+    "cf:generate": "node scripts/generate-module-index.js"
   },
   "bin": "./app.js",
   "pkg": {
@@ -105,6 +108,7 @@
     "pkg": "^5.8.1",
     "power-assert": "^1.6.1",
     "prettier": "^3.8.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "^4.69.0"
   }
 }

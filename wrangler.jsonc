@@ -1,0 +1,36 @@
+{
+  // Cloudflare Workers configuration for NCM API Enhanced.
+  // Deploy: npx wrangler deploy
+  // Local dev: npx wrangler dev
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ncm-api-enhanced",
+
+  // Entry point — bundled by wrangler (esbuild) before deployment.
+  "main": "worker.js",
+
+  // 2026-03-03: use the latest compatibility date to get the best Node.js API
+  // support via the nodejs_compat flag.
+  "compatibility_date": "2026-03-03",
+
+  // nodejs_compat exposes Node.js built-ins (process, path, Buffer, crypto …)
+  // inside the Workers runtime and lets wrangler polyfill them at bundle time.
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Serve the ./public directory as static assets.
+  // Files matched here are served directly by the CF network without hitting
+  // the Worker, which mirrors the serveStatic() call in server.hono.js.
+  "assets": {
+    "directory": "./public"
+  },
+
+  // Environment variables — override these in the Cloudflare dashboard or with
+  // a [vars] block in a wrangler.jsonc environment override.
+  "vars": {
+    "NODE_ENV": "production"
+  }
+
+  // Uncomment and fill in to restrict the Worker to a custom domain/route:
+  // "routes": [
+  //   { "pattern": "api.example.com/*", "zone_name": "example.com" }
+  // ]
+}
